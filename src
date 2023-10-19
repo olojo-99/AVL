@@ -1,0 +1,134 @@
+-- import Data.List package for intercalate function
+module PrettyT where
+import Data.List
+
+-- Define the AVL Tree Data Type
+data AVLTree t = Empty
+               | Root t (AVLTree t) (AVLTree t)
+                 deriving (Eq, Ord, Show)
+
+-- Can simplify Roots with both Empty children to leaf
+leaf x = Root x Empty Empty
+
+
+-- AVL TREE INSERTION IMPLEMENTATION
+
+-- Define function for calculating the height of a tree
+height :: (Ord t, Num t) => AVLTree t -> t
+height Empty = -1 -- Base Case: Empty nodes counted as -1
+height (Root h l r) = 1 + (max (height l) (height r)) -- Recursive subtrees calls
+
+
+-- Define function to check if tree is balanced
+isBalanced :: (Ord t, Num t) => AVLTree t -> Bool
+isBalanced Empty = True -- Base Case: Empty tree is balanced
+-- Check if left/right subtrees are inbalanced first then check height requirement
+isBalanced (Root h l r)
+                      | not(isBalanced l) = False
+                      | not(isBalanced r) = False
+                      | abs((height l) - (height r)) > 1 = False -- height req.
+                      | otherwise = True
+
+
+-- Define helper functions to return left/right subtree in tree
+leftSub :: AVLTree t -> AVLTree t
+leftSub Empty = Empty
+leftSub (Root h l r) = l -- return left subtree
+
+rightSub :: AVLTree t -> AVLTree t
+rightSub Empty = Empty
+rightSub (Root h l r) = r -- return right subtree
+
+-- Define helper function to return the value of the parent node
+parent :: (Ord t, Num t) => AVLTree t -> t
+parent Empty = 0 -- Base Case: Empty node has value of 0
+parent (Root h l r) = h
+
+
+-- Define function for single and double rotations to rebalance tree
+-- Source: https://www.cs.uleth.ca/~gaur/post/avl/
+rotate :: (Ord t, Num t) => AVLTree t -> AVLTree t
+rotate Empty = Empty
+rotate (Root h l r)
+                  | not(isBalanced l) = Root h (rotate l) r -- recursive rotate left subtree if unbalanced
+                  | not(isBalanced r) = Root h l (rotate r) -- recursive rotate right subtree
+                  | ( (height l) + 1 < (height r) ) && ( (height (leftSub r))  < (height (rightSub r)) )
+                  = Root (parent r) (Root h l (leftSub r)) (rightSub r) -- Single RR rotation
+                  | ( (height r) + 1 < (height l) ) && ( (height (rightSub l))  < (height (leftSub l)) )
+                  = Root (parent l) (leftSub l) (Root h (rightSub l) r) -- Single LL rotation
+                  | ( (height l) + 1 < (height r) ) && ( (height (leftSub r))  > (height (rightSub r)) )
+                  = Root (parent (leftSub r)) (Root h l (leftSub (leftSub r)))
+                    (Root (parent r) (rightSub (leftSub r)) (rightSub r)) -- Double RL rotation
+                  | ( (height r) + 1 < (height l) ) && ( (height (rightSub l))  > (height (leftSub l)) )
+                  = Root (parent (rightSub l)) (Root (parent l) (leftSub l) (leftSub (rightSub l)))
+                    (Root h (rightSub (rightSub l)) r) -- Double LR rotation
+                  | otherwise = Root h l r -- return the tree itself
+
+
+-- Define insertion function for new nodes
+insertion :: (Num t, Ord t) => AVLTree t -> t -> AVLTree t
+insertion Empty n = leaf n -- Base Case: Create a new leaf node
+insertion (Root h l r) n
+                        | h > n = rotate (Root h (insertion l n) r) -- insert into left child and rotate
+                        | otherwise = rotate ((Root h l (insertion r n))) -- insert into right child and rotate
+
+
+-- PRETTY PRINT IMPLEMENTATION
+
+-- Define data type for outlining the direction from parent
+-- Parent direction can either be left, right or no parent
+data PDirection = PLeft | PRight | None
+                  deriving (Show,Eq)
+
+-- Defining data type for parent position
+type PPosition = Int
+-- Data type to outline node depth
+type Depth = Int
+
+delin = '|' -- delineator
+dfactor = 4 -- specify depth factor used in printing
+
+-- Outline function for merging chars with zipwith
+merge char1 char2 = if char1 == delin 
+                    then char1 else char2
+
+-- Use zipwith to join elements using largest list
+zipWith' f xs [] = xs
+zipWith' f [] xs = xs
+zipWith' f (x:xs) (y:ys) = f x y : zipWith' f xs ys
+
+-- Define helper function for constructing output line
+makeLine pd h pp depth
+                          = foldl (zipWith' merge) "" (((++"|").(flip replicate ' ') -- foldl applied to resultant list
+                          <$> (dfactor*) <$> pp) ++ [(replicate (dfactor*depth) ' ') ++ ch ++ show h]) -- constructing list with stodut depth
+                           where ch = case pd of PLeft -> "└──" -- stdout string for left parent
+                                                 PRight -> "┌──" -- stdout string for right parent
+                                                 None -> "───" -- stdout string for no parent
+
+-- Defining printing helper function
+-- Parameters include parent direction, list of parent positions, depth, tree to produce string list
+treePrint :: Show t => PDirection -> [PPosition] -> Depth -> AVLTree t -> [String]
+
+treePrint _ _ _ Empty = [] -- Base Case: Empty tree returns empty list
+-- perform an inorder traversal while recursively creating string list to print
+treePrint pd pp depth (Root h l r)
+                                  = treePrint PRight new_rpos (depth+1) r ++ -- print right subtree next level with new right parent
+                                  [makeLine pd h pp depth] ++ -- construct line to be outputted
+                                  treePrint PLeft new_lpos (depth+1) l -- repeat on left subtree
+                                  where new_rpos = case pd of PRight -> pp -- new right parent position
+                                                              PLeft -> pp ++ [depth]
+                                                              None -> pp
+                                        new_lpos = case pd of PRight -> pp ++ [depth] -- new left parent position
+                                                              PLeft -> pp
+                                                              None -> pp
+
+-- Final function to print tree to stdout
+prettyPrint tree = putStr $ (intercalate "\r\n" (treePrint None [] 0 tree)) ++ "\r\n"
+-- use intercalate function to concatenate string lists with newlines and returns
+
+-- SAMPLE TREES
+-- (Root 3 (Root 2 (leaf 1) Empty) (Root 5 (leaf 4) Empty))
+-- (Root 3 (Root 2 (leaf 1) Empty) (Root 5 (leaf 4) (leaf 10)))
+-- (Root 4 (Root 2 (leaf 1) (leaf 3)) (Root 6 (leaf 5) (leaf 7)))
+
+-- (Root 3 (Root 2 (Root 1 Empty Empty) Empty) (Root 5 (Root 4 Empty Empty) (Root 10 Empty Empty)))
