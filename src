@@ -132,3 +132,4 @@ prettyPrint tree = putStr $ (intercalate "\r\n" (treePrint None [] 0 tree)) ++ "
 -- (Root 4 (Root 2 (leaf 1) (leaf 3)) (Root 6 (leaf 5) (leaf 7)))
 
 -- (Root 3 (Root 2 (Root 1 Empty Empty) Empty) (Root 5 (Root 4 Empty Empty) (Root 10 Empty Empty)))
+
